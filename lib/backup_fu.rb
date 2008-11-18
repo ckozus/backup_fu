@@ -43,17 +43,25 @@ class BackupFu
 
     if !@fu_conf[:disable_tar_gzip]
       
-      tar_path = File.join(dump_base_path, db_filename_tarred)
-
-      # TAR it up
-      cmd = niceify "tar -cf #{tar_path} -C #{dump_base_path} #{db_filename}"
-      puts "\nTar: #{cmd}\n" if @verbose
-      `#{cmd}`
-
-      # GZip it up
-      cmd = niceify "gzip -f #{tar_path}"
-      puts "\nGzip: #{cmd}" if @verbose
-      `#{cmd}`
+      # if it is Windows, force gzip using the pure Ruby minitar library
+      if RUBY_PLATFORM =~ /mswin|mingw/
+        require 'zlib'
+        require 'archive/tar/minitar'
+        gzip_path = File.join(dump_base_path, db_filename_gzipped)
+        Dir.chdir(dump_base_path) { Archive::Tar::Minitar.pack(db_filename,
+            Zlib::GzipWriter.new(File.open(gzip_path, 'wb'))) }
+        puts "\nGzip created: #{gzip_path}\n" if @verbose
+      else
+        tar_path = File.join(dump_base_path, db_filename_tarred)
+        # TAR it up
+        cmd = niceify "tar -cf #{tar_path} -C #{dump_base_path} #{db_filename}"
+        puts "\nTar: #{cmd}\n" if @verbose
+        `#{cmd}`
+        # GZip it up
+        cmd = niceify "gzip -f #{tar_path}"
+        puts "\nGzip: #{cmd}" if @verbose
+        `#{cmd}`
+      end
     end
     
   end
@@ -64,8 +72,9 @@ class BackupFu
     
     file = final_db_dump_path()
     puts "\nBacking up to S3: #{file}\n" if @verbose
-    
-    AWS::S3::S3Object.store(File.basename(file), open(file), @fu_conf[:s3_bucket], :access => :private)
+
+    data = File.open(file, 'rb').read
+    AWS::S3::S3Object.store(File.basename(file), data, @fu_conf[:s3_bucket], :access => :private)
     
   end
   
@@ -111,8 +120,9 @@ class BackupFu
     
     file = final_static_dump_path()
     puts "\nBacking up Static files to S3: #{file}\n" if @verbose
-    
-    AWS::S3::S3Object.store(File.basename(file), open(file), @fu_conf[:s3_bucket], :access => :private)
+
+    data = File.open(file, 'rb').read
+    AWS::S3::S3Object.store(File.basename(file), data, @fu_conf[:s3_bucket], :access => :private)
     
   end
   
@@ -178,6 +188,10 @@ class BackupFu
   
   def db_filename_tarred
     db_filename.gsub('.sql', '.tar')
+  end
+
+  def db_filename_gzipped
+    db_filename.gsub('.sql', '.tar.gz')
   end
   
   def final_db_dump_path
