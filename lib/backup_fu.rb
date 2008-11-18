@@ -73,8 +73,7 @@ class BackupFu
     file = final_db_dump_path()
     puts "\nBacking up to S3: #{file}\n" if @verbose
 
-    data = File.open(file, 'rb').read
-    AWS::S3::S3Object.store(File.basename(file), data, @fu_conf[:s3_bucket], :access => :private)
+    AWS::S3::S3Object.store(File.basename(file), open(file, 'rb').read, @fu_conf[:s3_bucket], :access => :private)
     
   end
   
@@ -121,8 +120,7 @@ class BackupFu
     file = final_static_dump_path()
     puts "\nBacking up Static files to S3: #{file}\n" if @verbose
 
-    data = File.open(file, 'rb').read
-    AWS::S3::S3Object.store(File.basename(file), data, @fu_conf[:s3_bucket], :access => :private)
+    AWS::S3::S3Object.store(File.basename(file), open(file, 'rb').read, @fu_conf[:s3_bucket], :access => :private)
     
   end
   
